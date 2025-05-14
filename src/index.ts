@@ -1,18 +1,14 @@
-import express, { type Request, type Response } from "express";
 import dotenv from "dotenv";
+import { startDiscordBot } from "./bot/discordBot.js";
+import { startExpressServer } from "./server/expressServer.js";
 
 // Carga variables de entorno desde .env
 dotenv.config();
 
-const app = express();
-const PORT: number = process.env.PORT ? Number(process.env.PORT) : 3000;
+// Inicializa el bot de Discord
+startDiscordBot();
 
-// Ruta de prueba
-app.get("/", (req: Request, res: Response) => {
-	res.send("¡Express + TypeScript funcionando correctamente!");
-});
+// Inicializa el servidor Express
+startExpressServer();
 
-// Inicia el servidor
-app.listen(PORT, () => {
-	console.log(`Servidor escuchando en http://localhost:${PORT}`);
-});
+console.log("Aplicación iniciada correctamente");
