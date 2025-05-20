@@ -18,7 +18,9 @@
     "@types/express": "^5.0.1",
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.100.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

@@ -3,14 +3,20 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 dotenv.config();
 // Simular __dirname en ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
 const HELLO_COMMAND = "bot";
 const TEMO_COMMAND = "temo";
 const CUMPLE_COMMAND = "cumpleaños";
 const MESSAGE_COMMAND = "mensaje";
+const MESSAGE2_COMMAND = "mensaje2";
+const ASKIA_COMMAND = "chatgaypt";
 const BIRTHDAYS_FILE = path.resolve(__dirname, "birthdays.json");
 // Cargar cumpleaños guardados
 function loadBirthdays() {
@@ -71,10 +77,34 @@ export function startDiscordBot() {
             .setName("mensaje")
             .setDescription("Mensaje que quieres enviar")
             .setRequired(true));
+        const message2Command = new SlashCommandBuilder()
+            .setName(MESSAGE2_COMMAND)
+            .setDescription("Dile lo que quieras")
+            .addUserOption((option) => option
+            .setName("usuario1")
+            .setDescription("Elige al puto que quieras")
+            .setRequired(true))
+            .addUserOption((option) => option
+            .setName("usuario2")
+            .setDescription("Elige a otro puto que diga lo que tu quieres")
+            .setRequired(true))
+            .addStringOption((option) => option
+            .setName("mensaje")
+            .setDescription("Mensaje que quieres enviar")
+            .setRequired(true));
+        const askiaCommand = new SlashCommandBuilder()
+            .setName(ASKIA_COMMAND)
+            .setDescription("Haz una pregunta a ChatGPT")
+            .addStringOption((option) => option
+            .setName("texto")
+            .setDescription("¿Qué quieres preguntarle a ChatGPT?")
+            .setRequired(true));
         await client.application?.commands.create(helloWorld);
         await client.application?.commands.create(temoCommand);
         await client.application?.commands.create(cumpleCommand);
         await client.application?.commands.create(messageCommand);
+        await client.application?.commands.create(message2Command);
+        await client.application?.commands.create(askiaCommand);
         // Inicia chequeo de cumpleaños
         startBirthdayChecker(client);
     });
@@ -105,7 +135,30 @@ export function startDiscordBot() {
             const usuario = interaction.options.getUser("usuario", true);
             const mensaje = interaction.options.getString("mensaje", true);
             // Menciona al usuario y muestra el mensaje
-            await interaction.reply(`${usuario} 👋 ${interaction.user.username} te dice: "${mensaje}"`);
+            await interaction.reply(`👋${usuario}, "${mensaje}"`);
+        }
+        else if (interaction.commandName === MESSAGE2_COMMAND) {
+            const usuario1 = interaction.options.getUser("usuario1", true);
+            const usuario2 = interaction.options.getUser("usuario2", true);
+            const mensaje = interaction.options.getString("mensaje", true);
+            // Menciona al usuario y muestra el mensaje
+            await interaction.reply(`👋${usuario2}, dice ${usuario1}, "${mensaje}"`);
+        }
+        else if (interaction.commandName === ASKIA_COMMAND) {
+            const ASKIA_COMMAND = interaction.options.getString("texto", true);
+            await interaction.deferReply(); // permite esperar sin timeout
+            try {
+                const respuesta = await openai.chat.completions.create({
+                    model: "gpt-4o", // o "gpt-3.5-turbo" si prefieres
+                    messages: [{ role: "user", content: ASKIA_COMMAND }],
+                });
+                const replyText = respuesta.choices[0]?.message.content || "No tengo respuesta.";
+                await interaction.editReply(replyText);
+            }
+            catch (error) {
+                console.error("Error con OpenAI:", error);
+                await interaction.editReply("Ocurrió un error al contactar con ChatGPT.");
+            }
         }
     });
     client.login(process.env.DISCORD_BOT_TOKEN);

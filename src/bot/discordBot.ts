@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
 dotenv.config();
 
@@ -15,10 +16,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 const HELLO_COMMAND = "bot";
 const TEMO_COMMAND = "temo";
 const CUMPLE_COMMAND = "cumpleaños";
 const MESSAGE_COMMAND = "mensaje";
+const MESSAGE2_COMMAND = "mensaje2";
+const ASKIA_COMMAND = "chatgaypt";
+const MATCH_COMMAND = "partidos";
 
 const BIRTHDAYS_FILE = path.resolve(__dirname, "birthdays.json");
 
@@ -93,10 +101,65 @@ export function startDiscordBot() {
           .setRequired(true)
       );
 
+    const message2Command = new SlashCommandBuilder()
+      .setName(MESSAGE2_COMMAND)
+      .setDescription("Dile lo que quieras")
+      .addUserOption((option) =>
+        option
+          .setName("usuario1")
+          .setDescription("Elige al puto que quieras")
+          .setRequired(true)
+      )
+      .addUserOption((option) =>
+        option
+          .setName("usuario2")
+          .setDescription("Elige a otro puto que diga lo que tu quieres")
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("mensaje")
+          .setDescription("Mensaje que quieres enviar")
+          .setRequired(true)
+      );
+
+    const askiaCommand = new SlashCommandBuilder()
+      .setName(ASKIA_COMMAND)
+      .setDescription("Haz una pregunta a ChatGPT")
+      .addStringOption((option) =>
+        option
+          .setName("texto")
+          .setDescription("¿Qué quieres preguntarle a ChatGPT?")
+          .setRequired(true)
+      );
+
+    const matchCommand = new SlashCommandBuilder()
+      .setName(MATCH_COMMAND)
+      .setDescription("Muestra los últimos o próximos partidos de un equipo")
+      .addStringOption((option) =>
+        option
+          .setName("equipo")
+          .setDescription("Nombre del equipo (ej. Real Madrid)")
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("tipo")
+          .setDescription("Elige si quieres ver partidos futuros o pasados")
+          .setRequired(true)
+          .addChoices(
+            { name: "Futuros", value: "next" },
+            { name: "Pasados", value: "last" }
+          )
+      );
+
     await client.application?.commands.create(helloWorld);
     await client.application?.commands.create(temoCommand);
     await client.application?.commands.create(cumpleCommand);
     await client.application?.commands.create(messageCommand);
+    await client.application?.commands.create(message2Command);
+    await client.application?.commands.create(askiaCommand);
+    await client.application?.commands.create(matchCommand);
 
     // Inicia chequeo de cumpleaños
     startBirthdayChecker(client);
@@ -131,10 +194,87 @@ export function startDiscordBot() {
       const mensaje = interaction.options.getString("mensaje", true);
 
       // Menciona al usuario y muestra el mensaje
-      await interaction.reply(
-        `${usuario} 👋 ${interaction.user.username} te dice: "${mensaje}"`
-      );
+      await interaction.reply(`👋${usuario}, "${mensaje}"`);
+    } else if (interaction.commandName === MESSAGE2_COMMAND) {
+      const usuario1 = interaction.options.getUser("usuario1", true);
+      const usuario2 = interaction.options.getUser("usuario2", true);
+      const mensaje = interaction.options.getString("mensaje", true);
+
+      // Menciona al usuario y muestra el mensaje
+      await interaction.reply(`👋${usuario2}, dice ${usuario1}, "${mensaje}"`);
+    } else if (interaction.commandName === ASKIA_COMMAND) {
+      const ASKIA_COMMAND = interaction.options.getString("texto", true);
+
+      await interaction.deferReply(); // permite esperar sin timeout
+
+      try {
+        const respuesta = await openai.chat.completions.create({
+          model: "gpt-4", // o "gpt-3.5-turbo" si prefieres
+          messages: [{ role: "user", content: ASKIA_COMMAND }],
+        });
+
+        const replyText =
+          respuesta.choices[0]?.message.content || "No tengo respuesta.";
+
+        await interaction.editReply(replyText);
+      } catch (error) {
+        console.error("Error con OpenAI:", error);
+        await interaction.editReply(
+          "Ocurrió un error al contactar con ChatGPT."
+        );
+      }
     }
+    // } else if (interaction.commandName === "partidos") {
+    //   const equipo = interaction.options.getString("equipo");
+    //   const tipo = interaction.options.getString("tipo"); // "next" o "last"
+
+    //   try {
+    //     const apiKey = process.env.API_FOOTBALL_KEY;
+
+    //     // 1. Buscar equipo
+    //     const teamRes = await fetch(
+    //       `https://v3.football.api-sports.io/teams?search=${encodeURIComponent(
+    //         equipo!
+    //       )}`,
+    //       {
+    //         method: "GET",
+    //         headers: {
+    //           "x-apisports-key": apiKey,
+    //         },
+    //       } as RequestInit
+    //     );
+    //     const teamData = await teamRes.json();
+    //     const team = teamData.response[0];
+    //     if (!team) return interaction.reply("❌ Equipo no encontrado.");
+
+    //     const teamId = team.team.id;
+
+    //     // 2. Buscar partidos
+    //     const matchRes = await fetch(
+    //       `https://v3.football.api-sports.io/fixtures?team=${teamId}&${tipo}=5`,
+    //       {
+    //         method: "GET",
+    //         headers: {
+    //           "x-apisports-key": apiKey,
+    //         },
+    //       } as RequestInit
+    //     );
+    //     const matchData = await matchRes.json();
+    //     const fixtures = matchData.response;
+
+    //     if (!fixtures.length)
+    //       return interaction.reply("❌ No se encontraron partidos.");
+
+    //     await interaction.reply(
+    //       `📋 Partidos de **${equipo}** (${
+    //         tipo === "next" ? "próximos" : "pasados"
+    //       }):\n\n${lista.join("\n")}`
+    //     );
+    //   } catch (err) {
+    //     console.error(err);
+    //     await interaction.reply("❌ Hubo un error al buscar los partidos.");
+    //   }
+    // }
   });
 
   client.login(process.env.DISCORD_BOT_TOKEN);
@@ -170,7 +310,9 @@ function startBirthdayChecker(client: Client) {
       if (fecha === diaMes) {
         try {
           const user = await client.users.fetch(userId);
-          await channel.send(`🎉 ¡Hoy es el cumpleaños de <@${userId}>! 🎂 ¡Felicidades, ${user.username}! 🎈`);
+          await channel.send(
+            `🎉 ¡Hoy es el cumpleaños de <@${userId}>! 🎂 ¡Felicidades, ${user.username}! 🎈`
+          );
         } catch (error) {
           console.error(`No se pudo felicitar a ${userId}:`, error);
         }
@@ -178,4 +320,3 @@ function startBirthdayChecker(client: Client) {
     }
   }, 5 * 60 * 1000); // Chequea cada 5 minutos
 }
-
